@@ -1,59 +1,43 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>方位センサーテスト</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin-top: 50px;
-    }
-    #arrow {
-      width: 100px;
-      transition: transform 0.1s linear;
-    }
-  </style>
-</head>
 <body>
-  <h1>矢印が方位に合わせて回ります</h1>
-  <img id="arrow" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Simple_arrow.svg/200px-Simple_arrow.svg.png" alt="Arrow" />
-  <p id="heading">読み取り中...</p>
+  <h1>方位センサーテスト</h1>
+  <button id="start">スタート</button>
+  <img id="arrow" src="..." style="width:100px;" />
+  <p id="heading">読み取り待ち...</p>
 
   <script>
-    function updateHeading(alpha) {
-      const arrow = document.getElementById('arrow');
-      const headingText = document.getElementById('heading');
+    const startBtn = document.getElementById('start');
+    const arrow = document.getElementById('arrow');
+    const headingText = document.getElementById('heading');
 
-      const heading = 360 - alpha; // 時計回りに調整
+    function updateHeading(alpha) {
+      const heading = 360 - alpha;
       arrow.style.transform = `rotate(${heading}deg)`;
       headingText.textContent = `方位: ${Math.round(heading)}°`;
     }
 
     function handleOrientation(event) {
-      if (event.absolute || event.alpha !== null) {
+      if (event.alpha != null) {
         updateHeading(event.alpha);
-      } else {
-        document.getElementById('heading').textContent = '方位センサーが利用できません';
       }
     }
 
-    if (typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // iOSの場合
-      DeviceOrientationEvent.requestPermission()
-        .then(response => {
-          if (response === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation);
-          } else {
-            alert('センサーの使用が許可されませんでした');
-          }
-        })
-        .catch(console.error);
-    } else {
-      // Androidなど
-      window.addEventListener('deviceorientation', handleOrientation);
-    }
+    startBtn.addEventListener('click', () => {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation);
+              startBtn.remove(); // ボタンを消す
+            } else {
+              alert('センサー使用が許可されませんでした');
+            }
+          })
+          .catch(console.error);
+      } else {
+        // Androidなど
+        window.addEventListener('deviceorientation', handleOrientation);
+        startBtn.remove();
+      }
+    });
   </script>
 </body>
-</html>
