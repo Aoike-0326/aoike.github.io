@@ -66,13 +66,14 @@
     function calculateTargetAngle(from, to) {
       const dx = to.x - from.x;
       const dy = to.y - from.y;
-      const radians = Math.atan2(dx, dy); // 北を0°に合わせるため dx, dy の順
+      const radians = Math.atan2(dy, dx); // 東を0°として時計回り
       const degrees = (radians * 180) / Math.PI;
-      return (degrees + 360) % 360;
+      const compassDegrees = (90 - degrees + 360) % 360; // 北を0°に合わせる
+      return compassDegrees;
     }
 
     function updateArrow(userHeading) {
-      const corrected = (360 - userHeading - correctionOffset + 360) % 360;
+      const corrected = (targetAngle - userHeading + 360) % 360;
       arrow.style.transform = `rotate(${corrected}deg)`;
       info.textContent = `向き: ${Math.round(userHeading)}° → 目的地方位: ${Math.round(targetAngle)}°`;
     }
@@ -107,9 +108,6 @@
         const from = checkpoints[expected];
         const to = checkpoints[next];
         targetAngle = calculateTargetAngle(from, to);
-
-        // 仮のユーザー角度（スキャン時に実際の角度が取れたらここに使う）
-        correctionOffset = 0; // 必要なら補正計算を入れる
         calibrated = true;
 
         info.textContent = `チェックポイント ${scanned} 認識 → 次は ${next}`;
