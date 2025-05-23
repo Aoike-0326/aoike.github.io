@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>方位ナビ矢印テスト</title>
+  <title>方向ナビ（ルート対応版）</title>
   <style>
     body {
       font-family: sans-serif;
@@ -19,67 +19,103 @@
       font-size: 16px;
       margin-bottom: 20px;
     }
+    #qr-input {
+      margin-top: 20px;
+      padding: 10px;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
-  <h1>方向ナビ矢印</h1>
+  <h1>ルート案内：方向ナビ</h1>
   <button id="start">方位センサー開始</button>
   <div>
     <img id="arrow" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Simple_arrow.svg/200px-Simple_arrow.svg.png" alt="Arrow" />
   </div>
   <p id="info">読み取り中...</p>
 
+  <input id="qr-input" placeholder="チェックポイントIDを入力（例: cp3）" />
+
   <script>
     const arrow = document.getElementById('arrow');
     const info = document.getElementById('info');
+    const qrInput = document.getElementById('qr-input');
 
     // 仮の座標データ
     const checkpoints = {
-      cp3:  { x: 1.5, y: 2.5 },
-      cp8:  { x: -0.5, y: -4 }
+      cp1:  { x: 4.5,  y: 2.5 },
+      cp2:  { x: 3.5,  y: 2.5 },
+      cp3:  { x: 1.5,  y: 2.5 },
+      cp4:  { x: -2,   y: 2.5 },
+      cp5:  { x: -4,   y: 2.5 },
+      cp6:  { x: -4,   y: -2.5 },
+      cp7:  { x: -4,   y: -3.5 },
+      cp8:  { x: -0.5, y: -4 },
+      cp9:  { x: 3.5,  y: -3.5 },
+      cp19: { x: -0.5, y: -3.5 }
     };
 
-    const from = checkpoints.cp3;
-    const to = checkpoints.cp8;
+    // 仮のルート（ユーザーの進行予定）
+    const route = ['cp3', 'cp8', 'cp9'];
+    let currentIndex = 0;
 
-    // 目的地方角を計算（北を0°として時計回り）
+    let targetAngle = 0;
+    let correctionOffset = 0;
+    let calibrated = false;
+
     function calculateTargetAngle(from, to) {
       const dx = to.x - from.x;
       const dy = to.y - from.y;
-      const radians = Math.atan2(dx, dy); // ※ dx, dyの順で北を0°に合わせる
+      const radians = Math.atan2(dx, dy); // 北を0°に合わせるため dx, dy の順
       const degrees = (radians * 180) / Math.PI;
       return (degrees + 360) % 360;
     }
 
-    const targetAngle = calculateTargetAngle(from, to);
-
     function updateArrow(userHeading) {
-      const diff = (targetAngle - userHeading + 360) % 360;
-      arrow.style.transform = `rotate(${diff}deg)`;
-      info.textContent = `あなたの向き: ${Math.round(userHeading)}° / 目的地方位: ${Math.round(targetAngle)}°`;
+      const corrected = (360 - userHeading - correctionOffset + 360) % 360;
+      arrow.style.transform = `rotate(${corrected}deg)`;
+      info.textContent = `向き: ${Math.round(userHeading)}° → 目的地方位: ${Math.round(targetAngle)}°`;
     }
 
     function handleOrientation(event) {
       if (event.alpha != null) {
-        const heading = 360 - event.alpha; // コンパス値：北を0°
-        updateArrow(heading);
+        const heading = event.alpha;
+        if (calibrated) updateArrow(heading);
       }
     }
 
-    const startBtn = document.getElementById('start');
-    startBtn.addEventListener('click', () => {
+    document.getElementById('start').addEventListener('click', () => {
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission().then(permission => {
           if (permission === 'granted') {
             window.addEventListener('deviceorientation', handleOrientation);
-            startBtn.remove();
           } else {
             alert('センサー使用が許可されませんでした');
           }
         });
       } else {
         window.addEventListener('deviceorientation', handleOrientation);
-        startBtn.remove();
+      }
+    });
+
+    qrInput.addEventListener('change', () => {
+      const scanned = qrInput.value.trim();
+      const expected = route[currentIndex];
+      const next = route[currentIndex + 1];
+
+      if (scanned === expected && checkpoints[expected] && checkpoints[next]) {
+        const from = checkpoints[expected];
+        const to = checkpoints[next];
+        targetAngle = calculateTargetAngle(from, to);
+
+        // 仮のユーザー角度（スキャン時に実際の角度が取れたらここに使う）
+        correctionOffset = 0; // 必要なら補正計算を入れる
+        calibrated = true;
+
+        info.textContent = `チェックポイント ${scanned} 認識 → 次は ${next}`;
+        currentIndex++;
+      } else {
+        info.textContent = `チェックポイントが一致しません（今: ${expected}）`;
       }
     });
   </script>
