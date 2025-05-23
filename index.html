@@ -1,43 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>方位ナビ矢印テスト</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 60px;
+    }
+    #arrow {
+      width: 120px;
+      transition: transform 0.1s linear;
+    }
+    #start {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
 <body>
-  <h1>方位センサーテスト</h1>
-  <button id="start">スタート</button>
-  <img id="arrow" src="..." style="width:100px;" />
-  <p id="heading">読み取り待ち...</p>
+  <h1>方向ナビ矢印</h1>
+  <button id="start">方位センサー開始</button>
+  <div>
+    <img id="arrow" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Simple_arrow.svg/200px-Simple_arrow.svg.png" alt="Arrow" />
+  </div>
+  <p id="info">読み取り中...</p>
 
   <script>
-    const startBtn = document.getElementById('start');
     const arrow = document.getElementById('arrow');
-    const headingText = document.getElementById('heading');
+    const info = document.getElementById('info');
 
-    function updateHeading(alpha) {
-      const heading = 360 - alpha;
-      arrow.style.transform = `rotate(${heading}deg)`;
-      headingText.textContent = `方位: ${Math.round(heading)}°`;
+    // 仮の座標データ
+    const checkpoints = {
+      cp3:  { x: 1.5, y: 2.5 },
+      cp8:  { x: -0.5, y: -4 }
+    };
+
+    const from = checkpoints.cp3;
+    const to = checkpoints.cp8;
+
+    // 目的地方角を計算（北を0°として時計回り）
+    function calculateTargetAngle(from, to) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const radians = Math.atan2(dx, dy); // ※ dx, dyの順で北を0°に合わせる
+      const degrees = (radians * 180) / Math.PI;
+      return (degrees + 360) % 360;
+    }
+
+    const targetAngle = calculateTargetAngle(from, to);
+
+    function updateArrow(userHeading) {
+      const diff = (targetAngle - userHeading + 360) % 360;
+      arrow.style.transform = `rotate(${diff}deg)`;
+      info.textContent = `あなたの向き: ${Math.round(userHeading)}° / 目的地方位: ${Math.round(targetAngle)}°`;
     }
 
     function handleOrientation(event) {
       if (event.alpha != null) {
-        updateHeading(event.alpha);
+        const heading = 360 - event.alpha; // コンパス値：北を0°
+        updateArrow(heading);
       }
     }
 
+    const startBtn = document.getElementById('start');
     startBtn.addEventListener('click', () => {
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then(permissionState => {
-            if (permissionState === 'granted') {
-              window.addEventListener('deviceorientation', handleOrientation);
-              startBtn.remove(); // ボタンを消す
-            } else {
-              alert('センサー使用が許可されませんでした');
-            }
-          })
-          .catch(console.error);
+        DeviceOrientationEvent.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+            startBtn.remove();
+          } else {
+            alert('センサー使用が許可されませんでした');
+          }
+        });
       } else {
-        // Androidなど
         window.addEventListener('deviceorientation', handleOrientation);
         startBtn.remove();
       }
     });
   </script>
 </body>
+</html>
