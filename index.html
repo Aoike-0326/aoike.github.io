@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>方向ナビ（ルート対応版）</title>
+  <title>方向ナビ（角度補正QR対応）</title>
   <style>
     body {
       font-family: sans-serif;
@@ -23,6 +23,7 @@
       margin-top: 20px;
       padding: 10px;
       font-size: 16px;
+      width: 80%;
     }
   </style>
 </head>
@@ -30,18 +31,17 @@
   <h1>ルート案内：方向ナビ</h1>
   <button id="start">方位センサー開始</button>
   <div>
-    <img id="arrow" src="https://roomsign.jp/wordpress/wp-content/themes/bridgeone2017/pict/jis2_42.jpg" alt="Arrow" />
+    <img id="arrow" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Simple_arrow.svg/200px-Simple_arrow.svg.png" alt="Arrow" />
   </div>
   <p id="info">読み取り中...</p>
 
-  <input id="qr-input" placeholder="チェックポイントIDを入力（例: cp3）" />
+  <input id="qr-input" placeholder="QR内容を入力（例: qr:cp3,angle:122）" />
 
   <script>
     const arrow = document.getElementById('arrow');
     const info = document.getElementById('info');
     const qrInput = document.getElementById('qr-input');
 
-    // 仮の座標データ
     const checkpoints = {
       cp1:  { x: 4.5,  y: 2.5 },
       cp2:  { x: 3.5,  y: 2.5 },
@@ -55,8 +55,7 @@
       cp19: { x: -0.5, y: -3.5 }
     };
 
-    // 仮のルート（ユーザーの進行予定）
-    const route = ['cp3', 'cp8'];
+    const route = ['cp3', 'cp8', 'cp9'];
     let currentIndex = 0;
 
     let targetAngle = 0;
@@ -66,16 +65,17 @@
     function calculateTargetAngle(from, to) {
       const dx = to.x - from.x;
       const dy = to.y - from.y;
-      const radians = Math.atan2(dy, dx); // 東を0°として時計回り
+      const radians = Math.atan2(dy, dx);
       const degrees = (radians * 180) / Math.PI;
-      const compassDegrees = (90 - degrees + 360) % 360; // 北を0°に合わせる
+      const compassDegrees = (90 - degrees + 360) % 360;
       return compassDegrees;
     }
 
     function updateArrow(userHeading) {
-      const corrected = (targetAngle - userHeading + 360) % 360;
-      arrow.style.transform = `rotate(${corrected}deg)`;
-      info.textContent = `向き: ${Math.round(userHeading)}° → 目的地方位: ${Math.round(targetAngle)}°`;
+      const corrected = (userHeading - correctionOffset + 360) % 360;
+      const diff = (targetAngle - corrected + 360) % 360;
+      arrow.style.transform = `rotate(${diff}deg)`;
+      info.textContent = `向き: ${Math.round(corrected)}° → 目的地方位: ${Math.round(targetAngle)}°`;
     }
 
     function handleOrientation(event) {
@@ -100,20 +100,36 @@
     });
 
     qrInput.addEventListener('change', () => {
-      const scanned = qrInput.value.trim();
-      const expected = route[currentIndex];
-      const next = route[currentIndex + 1];
+      const text = qrInput.value.trim();
+      const match = text.match(/qr:(cp\d+),?\s*angle:(\d+(\.\d+)?)/i);
 
-      if (scanned === expected && checkpoints[expected] && checkpoints[next]) {
-        const from = checkpoints[expected];
-        const to = checkpoints[next];
-        targetAngle = calculateTargetAngle(from, to);
-        calibrated = true;
+      if (match) {
+        const scanned = match[1];
+        const qrAngle = parseFloat(match[2]);
+        const expected = route[currentIndex];
+        const next = route[currentIndex + 1];
 
-        info.textContent = `チェックポイント ${scanned} 認識 → 次は ${next}`;
-        currentIndex++;
+        if (scanned === expected && checkpoints[expected] && checkpoints[next]) {
+          const from = checkpoints[expected];
+          const to = checkpoints[next];
+          targetAngle = calculateTargetAngle(from, to);
+
+          // スキャン時のユーザー向きを保存して補正に使う
+          window.addEventListener('deviceorientation', function temp(event) {
+            if (event.alpha != null) {
+              correctionOffset = (event.alpha - qrAngle + 360) % 360;
+              calibrated = true;
+              window.removeEventListener('deviceorientation', temp);
+            }
+          });
+
+          info.textContent = `チェックポイント ${scanned} 認識（設置角度 ${qrAngle}°） → 次は ${next}`;
+          currentIndex++;
+        } else {
+          info.textContent = `チェックポイントが一致しません（今: ${expected}）`;
+        }
       } else {
-        info.textContent = `チェックポイントが一致しません（今: ${expected}）`;
+        info.textContent = 'QR内容が正しくありません（例: qr:cp3,angle:122）';
       }
     });
   </script>
