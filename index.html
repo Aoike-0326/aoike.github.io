@@ -65,10 +65,9 @@
     function calculateTargetAngle(from, to) {
       const dx = to.x - from.x;
       const dy = to.y - from.y;
-      const radians = Math.atan2(dy, dx);
+      const radians = Math.atan2(dx, dy); // 修正：北を0°として時計回り
       const degrees = (radians * 180) / Math.PI;
-      const compassDegrees = (90 - degrees + 360) % 360;
-      return compassDegrees;
+      return (degrees + 360) % 360;
     }
 
     function updateArrow(userHeading) {
@@ -114,7 +113,6 @@
           const to = checkpoints[next];
           targetAngle = calculateTargetAngle(from, to);
 
-          // スキャン時のユーザー向きを保存して補正に使う
           window.addEventListener('deviceorientation', function temp(event) {
             if (event.alpha != null) {
               correctionOffset = (event.alpha - qrAngle + 360) % 360;
