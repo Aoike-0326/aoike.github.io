@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>方向ナビ（QR+GPS対応）</title>
+  <title>方向ナビ（GPS専用）</title>
   <style>
     body {
       font-family: sans-serif;
@@ -19,47 +19,28 @@
       font-size: 16px;
       margin-bottom: 20px;
     }
-    #qr-input {
-      margin-top: 20px;
-      padding: 10px;
-      font-size: 16px;
-      width: 80%;
-    }
   </style>
 </head>
 <body>
-  <h1>ルート案内：方向ナビ（QR+GPS）</h1>
-  <button id="start">方位センサー開始</button>
+  <h1>ルート案内：方向ナビ（GPS専用）</h1>
+  <button id="start">開始（位置情報許可）</button>
   <div>
     <img id="arrow" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Simple_arrow.svg/200px-Simple_arrow.svg.png" alt="Arrow" />
   </div>
-  <p id="info">読み取り中...</p>
-  <input id="qr-input" placeholder="QR内容を入力（例: qr:cp3,angle:122）" />
+  <p id="info">準備中...</p>
 
   <script>
     const arrow = document.getElementById('arrow');
     const info = document.getElementById('info');
-    const qrInput = document.getElementById('qr-input');
 
     const checkpoints = {
-      cp1: { x: 1012, y: 355 }, cp2: { x: 968, y: 330 }, cp18: { x: 968, y: 330 },
-      cp3: { x: 831, y: 326 }, cp11: { x: 831, y: 326 }, cp21: { x: 831, y: 326 },
-      cp4: { x: 586, y: 326 }, cp12: { x: 586, y: 326 }, cp22: { x: 586, y: 326 },
-      cp5: { x: 446, y: 312 }, cp13: { x: 446, y: 312 },
-      cp6: { x: 446, y: 643 }, cp14: { x: 446, y: 643 },
-      cp7: { x: 466, y: 733 }, cp17: { x: 466, y: 733 },
-      cp8: { x: 714, y: 767 }, cp16: { x: 714, y: 767 }, cp25: { x: 714, y: 767 },
-      cp9: { x: 958, y: 742 }, cp15: { x: 958, y: 742 },
-      cp20: { x: 1035, y: 745 }, cp23: { x: 1035, y: 745 }, cp24: { x: 1035, y: 745 },
-      cp19: { x: 604, y: 754 }
+      cp3: { x: 831, y: 326 },
+      cp8: { x: 714, y: 767 }
     };
 
-    const route = ['cp3', 'cp8'];
-    let currentIndex = parseInt(localStorage.getItem('currentIndex')) || 0;
-    let targetAngle = parseFloat(localStorage.getItem('targetAngle')) || 0;
-    let correctionOffset = parseFloat(localStorage.getItem('correctionOffset')) || 0;
-    let calibrated = localStorage.getItem('calibrated') === 'true';
-    let usingGPS = false;
+    const from = checkpoints['cp3'];
+    const to = checkpoints['cp8'];
+    let targetAngle = calculateTargetAngle(from, to);
 
     function calculateTargetAngle(from, to) {
       const dx = to.x - from.x;
@@ -69,91 +50,40 @@
       return (degrees + 360) % 360;
     }
 
-    function updateArrow(userHeading) {
-      const corrected = usingGPS ? userHeading : (userHeading - correctionOffset + 360) % 360;
-      const diff = (targetAngle - corrected + 360) % 360;
+    function updateArrow(deviceHeading) {
+      const diff = (targetAngle - deviceHeading + 360) % 360;
       arrow.style.transform = `rotate(${diff}deg)`;
-      info.textContent = `向き: ${Math.round(corrected)}° → 目的地方位: ${Math.round(targetAngle)}°`;
+      info.textContent = `現在の向き: ${Math.round(deviceHeading)}° → 目的地方位: ${Math.round(targetAngle)}°`;
     }
 
-    function handleOrientation(event) {
-      if (event.alpha != null && calibrated && !usingGPS) {
-        updateArrow(event.alpha);
-      }
+    function getDeviceHeadingFromGPS() {
+      navigator.geolocation.watchPosition((position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const timestamp = position.timestamp;
+
+        if (window.lastLat && window.lastLng) {
+          const dx = (lng - window.lastLng) * 100000;
+          const dy = (lat - window.lastLat) * 100000;
+          const angle = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+          updateArrow(angle);
+        }
+
+        window.lastLat = lat;
+        window.lastLng = lng;
+        window.lastTime = timestamp;
+      }, (err) => {
+        info.textContent = '位置情報の取得に失敗しました: ' + err.message;
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 5000
+      });
     }
 
     document.getElementById('start').addEventListener('click', () => {
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation);
-          } else {
-            alert('センサー使用が許可されませんでした');
-          }
-        });
-      } else {
-        window.addEventListener('deviceorientation', handleOrientation);
-      }
-    });
-
-    qrInput.addEventListener('change', () => {
-      const text = qrInput.value.trim();
-      const match = text.match(/qr:(cp\d+),?\s*angle:(\d+(\.\d+)?)/i);
-
-      if (match) {
-        const scanned = match[1];
-        const qrAngle = parseFloat(match[2]);
-        const expected = route[currentIndex];
-        const next = route[currentIndex + 1];
-
-        if (scanned === expected && checkpoints[expected] && checkpoints[next]) {
-          const from = checkpoints[expected];
-          const to = checkpoints[next];
-          targetAngle = calculateTargetAngle(from, to);
-
-          navigator.geolocation.getCurrentPosition(pos => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            const fakeFrom = { x: lng * 100000, y: lat * 100000 }; // 仮のスケーリング
-            const gpsAngle = calculateTargetAngle(fakeFrom, to);
-
-            correctionOffset = 0;
-            calibrated = true;
-            usingGPS = true;
-
-            localStorage.setItem('targetAngle', targetAngle);
-            localStorage.setItem('currentIndex', currentIndex + 1);
-            localStorage.setItem('calibrated', true);
-            localStorage.setItem('usingGPS', true);
-
-            updateArrow(gpsAngle);
-          }, () => {
-            // Fallback to deviceorientation if GPS fails
-            window.addEventListener('deviceorientation', function temp(event) {
-              if (event.alpha != null) {
-                correctionOffset = (event.alpha - qrAngle + 360) % 360;
-                calibrated = true;
-                usingGPS = false;
-
-                localStorage.setItem('correctionOffset', correctionOffset);
-                localStorage.setItem('targetAngle', targetAngle);
-                localStorage.setItem('currentIndex', currentIndex + 1);
-                localStorage.setItem('calibrated', true);
-                localStorage.setItem('usingGPS', false);
-
-                window.removeEventListener('deviceorientation', temp);
-              }
-            });
-          });
-
-          info.textContent = `チェックポイント ${scanned} 認識（設置角度 ${qrAngle}°） → 次は ${next}`;
-          currentIndex++;
-        } else {
-          info.textContent = `チェックポイントが一致しません（今: ${expected}）`;
-        }
-      } else {
-        info.textContent = 'QR内容が正しくありません（例: qr:cp3,angle:122）';
-      }
+      getDeviceHeadingFromGPS();
+      info.textContent = '位置情報取得中...';
     });
   </script>
 </body>
