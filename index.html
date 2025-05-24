@@ -43,19 +43,33 @@
     const qrInput = document.getElementById('qr-input');
 
     const checkpoints = {
-      cp1:  { x: 4.5,  y: 2.5 },
-      cp2:  { x: 3.5,  y: 2.5 },
-      cp3:  { x: 1.5,  y: 2.5 },
-      cp4:  { x: -2,   y: 2.5 },
-      cp5:  { x: -4,   y: 2.5 },
-      cp6:  { x: -4,   y: -2.5 },
-      cp7:  { x: -4,   y: -3.5 },
-      cp8:  { x: -0.5, y: -4 },
-      cp9:  { x: 3.5,  y: -3.5 },
-      cp19: { x: -0.5, y: -3.5 }
+      cp1:  { x: 1012, y: 355 },
+      cp2:  { x: 968,  y: 330 },
+      cp18: { x: 968,  y: 330 },
+      cp3:  { x: 831,  y: 326 },
+      cp11: { x: 831,  y: 326 },
+      cp21: { x: 831,  y: 326 },
+      cp4:  { x: 586,  y: 326 },
+      cp12: { x: 586,  y: 326 },
+      cp22: { x: 586,  y: 326 },
+      cp5:  { x: 446,  y: 312 },
+      cp13: { x: 446,  y: 312 },
+      cp6:  { x: 446,  y: 643 },
+      cp14: { x: 446,  y: 643 },
+      cp7:  { x: 466,  y: 733 },
+      cp17: { x: 466,  y: 733 },
+      cp8:  { x: 714,  y: 767 },
+      cp16: { x: 714,  y: 767 },
+      cp25: { x: 714,  y: 767 },
+      cp9:  { x: 958,  y: 742 },
+      cp15: { x: 958,  y: 742 },
+      cp20: { x: 1035, y: 745 },
+      cp23: { x: 1035, y: 745 },
+      cp24: { x: 1035, y: 745 },
+      cp19: { x: 604,  y: 754 }
     };
 
-    const route = ['cp3', 'cp8', 'cp9'];
+    const route = ['cp3', 'cp8'];
     let currentIndex = 0;
 
     let targetAngle = 0;
@@ -65,7 +79,7 @@
     function calculateTargetAngle(from, to) {
       const dx = to.x - from.x;
       const dy = to.y - from.y;
-      const radians = Math.atan2(dx, dy); // 修正：北を0°として時計回り
+      const radians = Math.atan2(dx, dy); // 北を0°として時計回り
       const degrees = (radians * 180) / Math.PI;
       return (degrees + 360) % 360;
     }
