@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>方向ナビ（GPS専用）</title>
+  <title>方向ナビ（GPS→ジャイロ補正）</title>
   <style>
     body {
       font-family: sans-serif;
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>ルート案内：方向ナビ（GPS専用）</h1>
+  <h1>ルート案内：方向ナビ（GPS→ジャイロ補正）</h1>
   <button id="start">開始（位置情報許可）</button>
   <div>
     <img id="arrow" src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Simple_arrow.svg/200px-Simple_arrow.svg.png" alt="Arrow" />
@@ -40,7 +40,10 @@
 
     const from = checkpoints['cp3'];
     const to = checkpoints['cp8'];
-    let targetAngle = calculateTargetAngle(from, to);
+    const targetAngle = calculateTargetAngle(from, to);
+
+    let correctionOffset = 0;
+    let calibrated = false;
 
     function calculateTargetAngle(from, to) {
       const dx = to.x - from.x;
@@ -51,27 +54,35 @@
     }
 
     function updateArrow(deviceHeading) {
-      const diff = (targetAngle - deviceHeading + 360) % 360;
+      const corrected = (deviceHeading - correctionOffset + 360) % 360;
+      const diff = (targetAngle - corrected + 360) % 360;
       arrow.style.transform = `rotate(${diff}deg)`;
-      info.textContent = `現在の向き: ${Math.round(deviceHeading)}° → 目的地方位: ${Math.round(targetAngle)}°`;
+      info.textContent = `向き: ${Math.round(corrected)}° → 目的地方位: ${Math.round(targetAngle)}°`;
     }
 
-    function getDeviceHeadingFromGPS() {
+    function calibrateWithGPSAndStartSensor() {
       navigator.geolocation.watchPosition((position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        const timestamp = position.timestamp;
 
         if (window.lastLat && window.lastLng) {
           const dx = (lng - window.lastLng) * 100000;
           const dy = (lat - window.lastLat) * 100000;
-          const angle = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
-          updateArrow(angle);
+          const gpsHeading = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+
+          // 一度だけ補正用にジャイロの現在値を取得
+          window.addEventListener('deviceorientation', function temp(event) {
+            if (event.alpha != null) {
+              correctionOffset = (event.alpha - gpsHeading + 360) % 360;
+              calibrated = true;
+              window.removeEventListener('deviceorientation', temp);
+              info.textContent = `補正完了（GPS基準: ${Math.round(gpsHeading)}°）`;
+            }
+          });
         }
 
         window.lastLat = lat;
         window.lastLng = lng;
-        window.lastTime = timestamp;
       }, (err) => {
         info.textContent = '位置情報の取得に失敗しました: ' + err.message;
       }, {
@@ -79,11 +90,31 @@
         maximumAge: 1000,
         timeout: 5000
       });
+
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            window.addEventListener('deviceorientation', (event) => {
+              if (event.alpha != null && calibrated) {
+                updateArrow(event.alpha);
+              }
+            });
+          } else {
+            alert('センサー使用が許可されませんでした');
+          }
+        });
+      } else {
+        window.addEventListener('deviceorientation', (event) => {
+          if (event.alpha != null && calibrated) {
+            updateArrow(event.alpha);
+          }
+        });
+      }
     }
 
     document.getElementById('start').addEventListener('click', () => {
-      getDeviceHeadingFromGPS();
-      info.textContent = '位置情報取得中...';
+      calibrateWithGPSAndStartSensor();
+      info.textContent = '位置情報とセンサー補正を取得中...';
     });
   </script>
 </body>
